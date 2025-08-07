@@ -495,8 +495,10 @@ with tab3:
                 title="Confidence Score Distribution",
                 color_discrete_sequence=['#667eea']
             )
-            fig_hist.update_xaxis(title="Confidence Score")
-            fig_hist.update_yaxis(title="Count")
+            fig_hist.update_layout(
+                xaxis_title="Confidence Score",
+                yaxis_title="Count"
+            )
             st.plotly_chart(fig_hist, use_container_width=True)
         
         # Clear history button
