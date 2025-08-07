@@ -1,6 +1,3 @@
-"""
-Streamlit Cloud optimized version of IMDb Sentiment Analyzer Pro
-"""
 
 import streamlit as st
 import joblib
@@ -10,6 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 import re
+import time
 import os
 from typing import Tuple, Dict, Any
 import logging
@@ -20,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Page configuration
 st.set_page_config(
-    page_title="IMDb Sentiment Analyzer Pro",
+    page_title="IMDb Sentiment Analyzer",
     page_icon="🎬",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -66,6 +64,21 @@ st.markdown("""
         font-weight: bold;
     }
     
+    .neutral-sentiment {
+        background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+        padding: 1rem;
+        border-radius: 10px;
+        color: #333;
+        text-align: center;
+        font-weight: bold;
+    }
+    
+    .stTextArea textarea {
+        border-radius: 10px;
+        border: 2px solid #e0e0e0;
+        font-size: 16px;
+    }
+    
     .stButton button {
         background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -75,29 +88,30 @@ st.markdown("""
         font-weight: bold;
         transition: all 0.3s ease;
     }
+    
+    .sidebar-content {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 @st.cache_resource
-def load_models():
-    """Load model and vectorizer with error handling for Streamlit Cloud"""
+def load_models() -> Tuple[Any, Any]:
+    """Load model and vectorizer with error handling"""
     try:
-        # Check if model files exist
-        model_path = "model/imdb_model.pkl"
-        vectorizer_path = "model/tfidf_vectorizer.pkl"
-        
-        if not os.path.exists(model_path) or not os.path.exists(vectorizer_path):
-            st.error("⚠️ Model files not found. Please ensure the model files are in the repository.")
-            st.info("If you're seeing this on first deployment, the model files might be too large for GitHub. Please check the repository structure.")
+        if not os.path.exists("model/imdb_model.pkl") or not os.path.exists("model/tfidf_vectorizer.pkl"):
+            st.error("❌ Model files not found! Please run train_model.py first.")
             st.stop()
         
-        model = joblib.load(model_path)
-        vectorizer = joblib.load(vectorizer_path)
+        model = joblib.load("model/imdb_model.pkl")
+        vectorizer = joblib.load("model/tfidf_vectorizer.pkl")
         logger.info("Models loaded successfully")
         return model, vectorizer
     except Exception as e:
         st.error(f"❌ Error loading models: {str(e)}")
-        st.info("This might be due to model files being too large for GitHub. Consider using Git LFS or alternative storage.")
         st.stop()
 
 def preprocess_text(text: str) -> str:
@@ -177,34 +191,11 @@ def analyze_text_stats(text: str) -> Dict[str, int]:
 if 'analysis_history' not in st.session_state:
     st.session_state.analysis_history = []
 
-# Try to load models
-try:
-    model, vectorizer = load_models()
-    models_loaded = True
-except:
-    models_loaded = False
+# Load models
+model, vectorizer = load_models()
 
 # Header
 st.markdown('<h1 class="main-header">🎬 IMDb Sentiment Analyzer Pro</h1>', unsafe_allow_html=True)
-
-if not models_loaded:
-    st.error("⚠️ **Model Loading Issue**")
-    st.info("""
-    The machine learning models couldn't be loaded. This is likely because:
-    
-    1. **Model files are too large for GitHub** (they're about 50MB each)
-    2. **Git LFS is needed** for large file storage
-    
-    **To fix this:**
-    - The models need to be uploaded using Git LFS
-    - Or hosted on external storage (AWS S3, Google Drive, etc.)
-    - Or retrained directly in the cloud
-    
-    **For now, you can see the UI and features, but predictions won't work.**
-    """)
-    
-    # Show demo mode
-    st.warning("🔧 **Demo Mode Active** - UI features available, but predictions are disabled")
 
 # Sidebar
 with st.sidebar:
@@ -225,11 +216,6 @@ with st.sidebar:
     st.metric("Validation Accuracy", "87.72%")
     st.metric("Training Samples", "25,000")
     st.metric("Model Type", "Logistic Regression")
-    
-    if models_loaded:
-        st.success("✅ Models loaded successfully")
-    else:
-        st.error("❌ Models not available")
     
     st.markdown("### 📈 Usage Statistics")
     if st.session_state.analysis_history:
@@ -294,167 +280,160 @@ with tab1:
         analyze_button = st.button("🚀 Analyze Sentiment", use_container_width=True)
     
     if analyze_button and user_input:
-        if not models_loaded:
-            st.error("❌ Cannot analyze - models not loaded. Please check the model files.")
-        else:
-            with st.spinner("🔄 Analyzing sentiment..."):
-                try:
-                    # Preprocess text if enabled
-                    processed_text = preprocess_text(user_input) if auto_preprocess else user_input
-                    
-                    if show_processed and auto_preprocess:
-                        st.markdown("**Processed Text:**")
-                        st.text(processed_text)
-                    
-                    # Make prediction
-                    input_vec = vectorizer.transform([processed_text])
-                    prediction_proba = model.predict_proba(input_vec)
-                    
-                    # Get detailed results
-                    results = get_sentiment_details(prediction_proba)
-                    
-                    # Display results
-                    st.markdown("---")
-                    st.markdown("### 🎯 Analysis Results")
-                    
-                    # Main sentiment result
-                    if results['prediction'] == 1:
-                        st.markdown(f"""
-                        <div class="positive-sentiment">
-                            <h2>🟢 POSITIVE SENTIMENT</h2>
-                            <p>Confidence: {results['confidence']:.1%} ({results['strength']})</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"""
-                        <div class="negative-sentiment">
-                            <h2>🔴 NEGATIVE SENTIMENT</h2>
-                            <p>Confidence: {results['confidence']:.1%} ({results['strength']})</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    # Detailed metrics
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Positive Probability", f"{results['positive_prob']:.1%}")
-                    with col2:
-                        st.metric("Negative Probability", f"{results['negative_prob']:.1%}")
-                    with col3:
-                        st.metric("Confidence Level", results['strength'])
-                    
-                    # Confidence chart
-                    fig = create_confidence_chart(results['positive_prob'], results['negative_prob'])
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Save to history
-                    analysis_record = {
-                        'timestamp': datetime.now(),
-                        'text': user_input[:100] + "..." if len(user_input) > 100 else user_input,
-                        'prediction': results['prediction'],
-                        'confidence': results['confidence'],
-                        'positive_prob': results['positive_prob'],
-                        'negative_prob': results['negative_prob']
-                    }
-                    st.session_state.analysis_history.append(analysis_record)
-                    
-                    st.success("✅ Analysis completed successfully!")
-                    
-                except Exception as e:
-                    st.error(f"❌ Error during analysis: {str(e)}")
-                    logger.error(f"Analysis error: {str(e)}")
+        with st.spinner("🔄 Analyzing sentiment..."):
+            try:
+                # Preprocess text if enabled
+                processed_text = preprocess_text(user_input) if auto_preprocess else user_input
+                
+                if show_processed and auto_preprocess:
+                    st.markdown("**Processed Text:**")
+                    st.text(processed_text)
+                
+                # Make prediction
+                input_vec = vectorizer.transform([processed_text])
+                prediction_proba = model.predict_proba(input_vec)
+                
+                # Get detailed results
+                results = get_sentiment_details(prediction_proba)
+                
+                # Display results
+                st.markdown("---")
+                st.markdown("### 🎯 Analysis Results")
+                
+                # Main sentiment result
+                if results['prediction'] == 1:
+                    st.markdown(f"""
+                    <div class="positive-sentiment">
+                        <h2>🟢 POSITIVE SENTIMENT</h2>
+                        <p>Confidence: {results['confidence']:.1%} ({results['strength']})</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="negative-sentiment">
+                        <h2>🔴 NEGATIVE SENTIMENT</h2>
+                        <p>Confidence: {results['confidence']:.1%} ({results['strength']})</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Detailed metrics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Positive Probability", f"{results['positive_prob']:.1%}")
+                with col2:
+                    st.metric("Negative Probability", f"{results['negative_prob']:.1%}")
+                with col3:
+                    st.metric("Confidence Level", results['strength'])
+                
+                # Confidence chart
+                fig = create_confidence_chart(results['positive_prob'], results['negative_prob'])
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Save to history
+                analysis_record = {
+                    'timestamp': datetime.now(),
+                    'text': user_input[:100] + "..." if len(user_input) > 100 else user_input,
+                    'prediction': results['prediction'],
+                    'confidence': results['confidence'],
+                    'positive_prob': results['positive_prob'],
+                    'negative_prob': results['negative_prob']
+                }
+                st.session_state.analysis_history.append(analysis_record)
+                
+                st.success("✅ Analysis completed successfully!")
+                
+            except Exception as e:
+                st.error(f"❌ Error during analysis: {str(e)}")
+                logger.error(f"Analysis error: {str(e)}")
     
     elif analyze_button and not user_input:
         st.warning("⚠️ Please enter some text to analyze.")
 
 with tab2:
     st.markdown("### 📝 Batch Analysis")
+    st.info("Upload a CSV file with movie reviews or enter multiple reviews separated by lines.")
     
-    if not models_loaded:
-        st.warning("⚠️ Batch analysis requires models to be loaded.")
-    else:
-        st.info("Upload a CSV file with movie reviews or enter multiple reviews separated by lines.")
+    # File upload option
+    uploaded_file = st.file_uploader(
+        "Upload CSV file with reviews",
+        type=['csv'],
+        help="CSV should have a column named 'review' containing the movie reviews"
+    )
+    
+    # Manual input option
+    st.markdown("**Or enter multiple reviews (one per line):**")
+    batch_input = st.text_area(
+        "Multiple Reviews:",
+        height=200,
+        placeholder="Enter each review on a new line...\nReview 1\nReview 2\nReview 3"
+    )
+    
+    if st.button("🔄 Process Batch", use_container_width=True):
+        reviews_to_process = []
         
-        # File upload option
-        uploaded_file = st.file_uploader(
-            "Upload CSV file with reviews",
-            type=['csv'],
-            help="CSV should have a column named 'review' containing the movie reviews"
-        )
+        if uploaded_file:
+            try:
+                df = pd.read_csv(uploaded_file)
+                if 'review' in df.columns:
+                    reviews_to_process = df['review'].dropna().tolist()
+                else:
+                    st.error("❌ CSV file must contain a 'review' column")
+            except Exception as e:
+                st.error(f"❌ Error reading CSV file: {str(e)}")
         
-        # Manual input option
-        st.markdown("**Or enter multiple reviews (one per line):**")
-        batch_input = st.text_area(
-            "Multiple Reviews:",
-            height=200,
-            placeholder="Enter each review on a new line...\nReview 1\nReview 2\nReview 3"
-        )
+        elif batch_input:
+            reviews_to_process = [review.strip() for review in batch_input.split('\n') if review.strip()]
         
-        if st.button("🔄 Process Batch", use_container_width=True):
-            reviews_to_process = []
+        if reviews_to_process:
+            progress_bar = st.progress(0)
+            results_data = []
             
-            if uploaded_file:
+            for i, review in enumerate(reviews_to_process):
                 try:
-                    df = pd.read_csv(uploaded_file)
-                    if 'review' in df.columns:
-                        reviews_to_process = df['review'].dropna().tolist()
-                    else:
-                        st.error("❌ CSV file must contain a 'review' column")
+                    processed_text = preprocess_text(review)
+                    input_vec = vectorizer.transform([processed_text])
+                    prediction_proba = model.predict_proba(input_vec)
+                    results = get_sentiment_details(prediction_proba)
+                    
+                    results_data.append({
+                        'Review': review[:100] + "..." if len(review) > 100 else review,
+                        'Sentiment': 'Positive' if results['prediction'] == 1 else 'Negative',
+                        'Confidence': f"{results['confidence']:.1%}",
+                        'Positive_Prob': f"{results['positive_prob']:.1%}",
+                        'Negative_Prob': f"{results['negative_prob']:.1%}"
+                    })
+                    
+                    progress_bar.progress((i + 1) / len(reviews_to_process))
+                    
                 except Exception as e:
-                    st.error(f"❌ Error reading CSV file: {str(e)}")
+                    st.error(f"❌ Error processing review {i+1}: {str(e)}")
             
-            elif batch_input:
-                reviews_to_process = [review.strip() for review in batch_input.split('\n') if review.strip()]
-            
-            if reviews_to_process:
-                progress_bar = st.progress(0)
-                results_data = []
+            if results_data:
+                results_df = pd.DataFrame(results_data)
+                st.markdown("### 📊 Batch Analysis Results")
+                st.dataframe(results_df, use_container_width=True)
                 
-                for i, review in enumerate(reviews_to_process):
-                    try:
-                        processed_text = preprocess_text(review)
-                        input_vec = vectorizer.transform([processed_text])
-                        prediction_proba = model.predict_proba(input_vec)
-                        results = get_sentiment_details(prediction_proba)
-                        
-                        results_data.append({
-                            'Review': review[:100] + "..." if len(review) > 100 else review,
-                            'Sentiment': 'Positive' if results['prediction'] == 1 else 'Negative',
-                            'Confidence': f"{results['confidence']:.1%}",
-                            'Positive_Prob': f"{results['positive_prob']:.1%}",
-                            'Negative_Prob': f"{results['negative_prob']:.1%}"
-                        })
-                        
-                        progress_bar.progress((i + 1) / len(reviews_to_process))
-                        
-                    except Exception as e:
-                        st.error(f"❌ Error processing review {i+1}: {str(e)}")
+                # Summary statistics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    positive_count = len([r for r in results_data if r['Sentiment'] == 'Positive'])
+                    st.metric("Positive Reviews", f"{positive_count} ({positive_count/len(results_data):.1%})")
+                with col2:
+                    negative_count = len([r for r in results_data if r['Sentiment'] == 'Negative'])
+                    st.metric("Negative Reviews", f"{negative_count} ({negative_count/len(results_data):.1%})")
+                with col3:
+                    st.metric("Total Processed", len(results_data))
                 
-                if results_data:
-                    results_df = pd.DataFrame(results_data)
-                    st.markdown("### 📊 Batch Analysis Results")
-                    st.dataframe(results_df, use_container_width=True)
-                    
-                    # Summary statistics
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        positive_count = len([r for r in results_data if r['Sentiment'] == 'Positive'])
-                        st.metric("Positive Reviews", f"{positive_count} ({positive_count/len(results_data):.1%})")
-                    with col2:
-                        negative_count = len([r for r in results_data if r['Sentiment'] == 'Negative'])
-                        st.metric("Negative Reviews", f"{negative_count} ({negative_count/len(results_data):.1%})")
-                    with col3:
-                        st.metric("Total Processed", len(results_data))
-                    
-                    # Download results
-                    csv = results_df.to_csv(index=False)
-                    st.download_button(
-                        label="📥 Download Results as CSV",
-                        data=csv,
-                        file_name=f"sentiment_analysis_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv"
-                    )
-            else:
-                st.warning("⚠️ Please upload a CSV file or enter reviews to process.")
+                # Download results
+                csv = results_df.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download Results as CSV",
+                    data=csv,
+                    file_name=f"sentiment_analysis_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv"
+                )
+        else:
+            st.warning("⚠️ Please upload a CSV file or enter reviews to process.")
 
 with tab3:
     st.markdown("### 📊 Analysis History")
@@ -566,24 +545,13 @@ with tab4:
         """)
     
     st.markdown("---")
-    
-    # GitHub repository link
-    st.markdown("""
-    ### 🔗 Links & Resources
-    
-    - **GitHub Repository**: [imdb-sentiment-analyzer-pro](https://github.com/Manupati-Suresh/imdb-sentiment-analyzer-pro)
-    - **Documentation**: Complete setup and usage guides
-    - **Docker Support**: Ready for containerized deployment
-    - **CI/CD Pipeline**: Automated testing and deployment
-    
-    **Built with ❤️ using Streamlit and Machine Learning**
-    """)
+    st.markdown("**Created with ❤️ using Streamlit and Machine Learning**")
 
 # Footer
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #666; padding: 1rem;'>"
-    "🎬 IMDb Sentiment Analyzer Pro | Deployed on Streamlit Cloud"
+    "🎬 IMDb Sentiment Analyzer Pro | Built with Streamlit & Machine Learning"
     "</div>",
     unsafe_allow_html=True
 )
