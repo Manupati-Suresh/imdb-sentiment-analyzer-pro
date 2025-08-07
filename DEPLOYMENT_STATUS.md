@@ -12,6 +12,11 @@
 - **Solution**: Replaced `app.py` with the cloud-optimized version
 - **Status**: ✅ Fixed and pushed to GitHub
 
+### **3. Plotly AttributeError - RESOLVED**
+- **Problem**: `fig_hist.update_xaxis()` method causing AttributeError on line 498
+- **Solution**: Replaced with `fig_hist.update_layout()` method for compatibility
+- **Status**: ✅ Fixed and pushed to GitHub
+
 ## 🎯 **Current Deployment Status:**
 
 **App URL**: `manupati-suresh-imdb-sentiment-analyzer-pro-app-k03keb.streamlit.app`
